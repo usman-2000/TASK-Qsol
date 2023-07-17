@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.7;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+
+contract QTKN is ERC20 {
+    constructor() ERC20("QTKN", "QTKN") {}
+
+    uint256 public constant Rate = 100;
+    function buyToken() external payable {
+        uint256 Amount = msg.value * Rate;
+        _mint(msg.sender, Amount);
+    }
+}
+
+contract School is Ownable{
+    uint256 public baseTerm  = 90;
+    uint256 public schoolTax = 3;
+    struct Course {
+        uint256 basePrice;
+        uint256 teacherShare;
+    }
+    mapping (address => Course) public courses;
+    mapping (address => uint256) public teacherBaseTerm;
+    mapping (address => uint256) public teacherShareTermWithSchool;
+    bool public courseCompleted = false;
+
+    function setCourseCompleted() public {
+        courseCompleted = true;
+    }
+
+    function setBaseTerm(uint256 _newBaseTerm) external onlyOwner {
+        baseTerm = _newBaseTerm;
+    }
+
+    function setTeacherBaseTerm(uint256 _teacherBaseTerm , uint256 _teacherSchoolShare) public {
+        require(_teacherBaseTerm <= baseTerm, "Cannot set more than baseterm set by school");
+        teacherBaseTerm[msg.sender] = _teacherBaseTerm;
+        teacherShareTermWithSchool[msg.sender] = _teacherSchoolShare;
+    }
+
+    function createCourse(uint256 _basePrice, uint256 _teacherShare , address _teacher) external onlyOwner {
+        require(_teacherShare <= baseTerm, "Teacher Share is not valid");
+        courses[_teacher] = Course(_basePrice, _teacherShare);
+    }
+
+    function calculateCoursePrice(address _teacher) public view returns(uint256){
+        Course memory course = courses[_teacher];
+        uint256 schoolShare = (course.basePrice * (100 - course.teacherShare)) / 100;
+        uint256 coursePrice = course.basePrice + (schoolShare * schoolTax) / 100;
+        return coursePrice;
+    }
+}
+
+
+contract CourseCertificate is ERC721,School {
+    constructor() ERC721("CERTIFICATE", "QCERT") {}
+
+    uint256 private _tokenCounter;
+    mapping(uint256 => bool) private _certificateExists;
+
+    function mintCertificate(address _to) external returns (uint256) {
+        require(courseCompleted == true,"Complete the course");
+        require(!_certificateExists[_tokenCounter], "Certificate already minted");
+
+        _safeMint(_to, _tokenCounter);
+        _certificateExists[_tokenCounter] = true;
+
+        return _tokenCounter++;
+    }
+}
